@@ -94,9 +94,14 @@ class CLI(object):
         return [row.oRecordData for row in res]
 
     def _print(self, res, duration=0):
-        print json.dumps(res, indent=4, sort_keys=True, default=toserial)
+        if res is not None:
+            print json.dumps(res, indent=4, sort_keys=True, default=toserial)
+            print "({} row{})".format(
+                len(res),
+                "" if 1 == len(res) else "s"
+            )
         if self.timing:
-            print "Time: {} ms".format(round(1000 * duration, 3))
+            print "\nTime: {} ms".format(round(1000 * duration, 3))
         print
 
     class UnkownMetaCommand(Exception):

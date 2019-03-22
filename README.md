@@ -1,5 +1,6 @@
 # osql
-OrientDB interactive terminal
+OrientDB interactive terminal -- if you're familar with psql this should feel somewhat familiar.
+
 
 ```
 (defacto) josephbylund@kadmin-XPS-15-9570:~/osql$ osql --dbname=game_of_thrones

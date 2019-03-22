@@ -1,0 +1,2 @@
+# osql
+OrientDB interactive terminal

@@ -4,11 +4,13 @@ from getpass import getuser
 import json
 import os
 import readline  # not to be confused with the builtin
-
+import sys
+import time
 
 try:
     import kensho_pyorient as pyorient
 except ImportError:
+    print >> sys.stderr, "WARNING: importing upstream pyorient, this will cause a socketerror on some query exceptions."
     import pyorient
 
 
@@ -27,6 +29,7 @@ class CLI(object):
         self.client = None
         self.session_id = None
         self.cmdno = 0
+        self.timing = False
         self._connect()
         readline.set_completer(self._completion)
         readline.parse_and_bind('tab: complete')
@@ -90,8 +93,10 @@ class CLI(object):
         res = self.client.command(cmd)
         return [row.oRecordData for row in res]
 
-    def _print(self, res):
+    def _print(self, res, duration=0):
         print json.dumps(res, indent=4, sort_keys=True, default=toserial)
+        if self.timing:
+            print "Time: {} ms".format(round(1000 * duration, 3))
         print
 
     class UnkownMetaCommand(Exception):
@@ -104,6 +109,8 @@ class CLI(object):
                 row.oRecordData for row in
                 self.client.command('select from (select expand(classes) from metadata:schema)')
             ]
+        elif cmd == 'timing':
+            self.timing = not(self.timing) # it's a toggle
         else:
             raise self.UnkownMetaCommand('Unknown meta command!')
 
@@ -112,11 +119,13 @@ class CLI(object):
         while True:
             try:
                 cmd = self._read()
+                begin = time.time()
                 if cmd[0] == '\\':
                     res = self._special_cmd(cmd)
                 else:
                     res = self._eval(cmd)
-                self._print(res)
+                end = time.time()
+                self._print(res, duration=end-begin)
             except self.UnkownMetaCommand:
                 print "Unkown meta command '{}'.".format(cmd)
                 print

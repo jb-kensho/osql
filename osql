@@ -9,8 +9,9 @@ import time
 
 try:
     import kensho_pyorient as pyorient
-except ImportError:
+except ImportError as oops:
     print >> sys.stderr, "WARNING: importing upstream pyorient, this will cause a socketerror on some query exceptions."
+    print >> sys.stderr, oops
     import pyorient
 
 
@@ -125,7 +126,9 @@ class CLI(object):
             try:
                 cmd = self._read()
                 begin = time.time()
-                if cmd[0] == '\\':
+                if not cmd:
+                    res = None
+                elif cmd[0] == '\\':
                     res = self._special_cmd(cmd)
                 else:
                     res = self._eval(cmd)

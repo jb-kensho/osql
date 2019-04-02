@@ -87,8 +87,16 @@ class CLI(object):
 
     def _read(self):
         self.cmdno += 1
-        prompt = "In [{}]: ".format(self.cmdno)
-        return raw_input(prompt).strip()
+        pieces = []
+        while not pieces or not pieces[-1].endswith(';'):
+            nprompt = "In [{}]: ".format(self.cmdno)
+            cprompt = "...: ".rjust(len(nprompt))
+            if not pieces:
+                prompt = nprompt
+            else:
+                prompt = cprompt
+            pieces.append(raw_input(prompt).strip())
+        return " ".join(pieces)
 
     def _eval(self, cmd):
         res = self.client.command(cmd)

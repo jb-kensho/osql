@@ -31,6 +31,7 @@ class CLI(object):
         self.session_id = None
         self.cmdno = 0
         self.timing = False
+        self.tx = None
         self._connect()
         readline.set_completer(self._completion)
         readline.parse_and_bind('tab: complete')
@@ -89,7 +90,7 @@ class CLI(object):
         self.cmdno += 1
         pieces = []
         while not pieces or not pieces[-1].endswith(';'):
-            nprompt = "In [{}]: ".format(self.cmdno)
+            nprompt = "In [{}]{}: ".format(self.cmdno, ' (in txn)' if self.tx is not None else '')
             cprompt = "...: ".rjust(len(nprompt))
             if not pieces:
                 prompt = nprompt
@@ -100,7 +101,12 @@ class CLI(object):
 
     def _eval(self, cmd):
         res = self.client.command(cmd)
-        return [row.oRecordData for row in res]
+        try:
+            return [row.oRecordData for row in res]
+        except:
+            print dir(res)
+            print res
+            raise
 
     def _print(self, res, duration=0):
         if res is not None:
@@ -128,6 +134,43 @@ class CLI(object):
         else:
             raise self.UnkownMetaCommand('Unknown meta command!')
 
+
+    def is_txn_cmd(self, cmd):
+        if cmd.strip().strip(';').strip().lower() in ('begin','end','commit','rollback'):
+            return True
+        return False
+
+    def txn_cmd(self, cmd):
+        cmd = cmd.strip().strip(';').strip().lower()
+        {
+            'begin': self.begin_txn,
+            'end': self.end_txn,
+            'commit': self.commit_txn,
+            'rollback': self.rollback_txn,
+        }[cmd]()
+
+    def begin_txn(self):
+        self.tx = self.client.tx_commit()
+        self.tx.begin()
+
+    def end_txn(self):
+        self._is_in_error = False
+        if self._is_in_error:
+            self.rollback_txn()
+        else:
+            self.commit_txn()
+
+    def commit_txn(self):
+        self.tx.commit()
+        self.tx = None
+
+    def rollback_txn(self):
+        self.tx.rollback()
+        self.tx = None
+
+    def in_txn(self):
+        return self.tx is not None
+
     def repl(self):
         """read / eval / print"""
         while True:
@@ -138,6 +181,8 @@ class CLI(object):
                     res = None
                 elif cmd[0] == '\\':
                     res = self._special_cmd(cmd)
+                elif self.is_txn_cmd(cmd):
+                    res = self.txn_cmd(cmd)
                 else:
                     res = self._eval(cmd)
                 end = time.time()

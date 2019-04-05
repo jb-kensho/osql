@@ -8,6 +8,7 @@ import sys
 import time
 
 try:
+    sys.path.append("/home/josephbylund/.local/share/virtualenvs/app-I2jH_kpr/lib/python2.7/site-packages")
     import kensho_pyorient as pyorient
 except ImportError as oops:
     print >> sys.stderr, "WARNING: importing upstream pyorient, this will cause a socketerror on some query exceptions."
@@ -19,7 +20,7 @@ def toserial(obj):
     try:
         json.dumps(obj)
         return obj
-    except BaseException:
+    except:
         return str(obj)
 
 
@@ -31,50 +32,69 @@ class CLI(object):
         self.session_id = None
         self.cmdno = 0
         self.timing = False
+        self.tablenames = None
         self._connect()
         readline.set_completer(self._completion)
         readline.parse_and_bind('tab: complete')
 
     def _completion(self, needle, state):
+        current_text = readline.get_line_buffer()
         needle = needle.upper()
-        keywords = [
-            "CREATE",
-            "DELETE",
-            "EOF",
-            "FETCHPLAN",
-            "GROUP",
-            "INSERT",
-            "LET",
-            "LIMIT",
-            "LOCK",
-            "NOCACHE",
-            "OFFSET",
-            "ORDER",
-            "PARALLEL",
-            "SELECT",
-            "SKIP2",
-            "TIMEOUT",
-            "UNWIND",
-            "UPDATE",
-            "WHERE",
-        ]
-        matches = [x for x in keywords if x.startswith(needle)]
+        current_words = current_text.lower().split()
+        if (
+            (    current_text.endswith(' ') and 'from' in current_words[-1:]) or #
+            (not current_text.endswith(' ') and 'from' in current_words[-2:-1])
+        ):
+            matches = [
+                tablename
+                for tablename in self._get_tablenames()
+                if tablename.upper().startswith(needle)
+            ]
+        else:
+            keywords = [
+                "CREATE",
+                "DELETE",
+                "EOF",
+                "FETCHPLAN",
+                "FROM",
+                "GROUP",
+                "INCREMENT",
+                "INSERT",
+                "LET",
+                "LIMIT",
+                "LOCK",
+                "NOCACHE",
+                "OFFSET",
+                "ORDER",
+                "PARALLEL",
+                "PUT",
+                "REMOVE",
+                "RETURN",
+                "SELECT",
+                "SET",
+                "SKIP2",
+                "TIMEOUT",
+                "UNWIND",
+                "UPDATE",
+                "WHERE",
+            ]
+            matches = [x for x in keywords if x.startswith(needle)]
         try:
             return matches[state] + " "
-        except BaseException:
+        except IndexError:
             return  # non-string return value means we're done
 
     def _connect(self):
         self.cmdno = 0
         try:
             self.client = pyorient.OrientDB(self.host, self.port)
-        except BaseException:
+        except:
             raise Exception(
                 'Could not connect to {}:{} is the server running & listening on that port?'
             )
         try:
             self.session_id = self.client.connect(self.username, self.password)
-        except BaseException:
+        except:
             raise Exception('Could not connect as user, check credentials.')
         try:
             self.client.db_open(
@@ -82,7 +102,7 @@ class CLI(object):
                 self.username,
                 self.password
             )
-        except BaseException:
+        except:
             raise Exception('Could not open database, check database and credentials.')
 
     def _read(self):
@@ -96,11 +116,17 @@ class CLI(object):
             else:
                 prompt = cprompt
             pieces.append(raw_input(prompt).strip())
+            if pieces[0].startswith('\\'):
+                break
         return " ".join(pieces)
 
     def _eval(self, cmd):
         res = self.client.command(cmd)
-        return [row.oRecordData for row in res]
+        try:
+            return [row.oRecordData for row in res]
+        except:
+            # in the case of deletes... I guess you get this
+            return [None for _ in xrange(res[0])]
 
     def _print(self, res, duration=0):
         if res is not None:
@@ -115,6 +141,14 @@ class CLI(object):
 
     class UnkownMetaCommand(Exception):
         pass
+
+    def _get_tablenames(self):
+        if self.tablenames is None:
+            self.tablenames = sorted(
+                row.oRecordData['name'] for row in
+                self.client.command('select from (select expand(classes) from metadata:schema)')
+            )
+        return self.tablenames
 
     def _special_cmd(self, cmd):
         cmd = cmd.lstrip('\\')
